@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"zestack.dev/cast"
+	"go-slim.dev/cast"
 )
 
 func TestFromString(t *testing.T) {

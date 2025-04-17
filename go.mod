@@ -1,4 +1,4 @@
-module zestack.dev/cast
+module go-slim.dev/cast
 
 go 1.21.0
 
