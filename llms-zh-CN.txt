@@ -1,0 +1,198 @@
+# cast - 字符串到原生类型转换库
+
+> go-slim.dev/cast
+
+一个极简、无依赖的 Go 字符串类型转换库。
+
+## 项目结构
+
+```
+cast/
+├── cast.go          - 核心调度器（FromString, FromType）
+├── bool.go          - 布尔值解析
+├── num.go           - 数值类型解析（int, uint, float, decimal）
+├── time.go          - 时间和持续时间解析
+├── *_test.go        - 完整测试套件
+├── go.mod           - 模块定义
+├── README.md        - 英文文档
+└── README.zh-CN.md  - 中文文档
+```
+
+## 核心 API
+
+### 主要入口点
+
+1. **FromString(s string, targetType string) (any, error)**
+   - 通过类型名称将字符串转换为指定类型
+   - 支持类型：int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool, string, time.Time, time.Duration
+
+2. **FromType(s string, targetType reflect.Type) (any, error)**
+   - 使用反射进行字符串转换
+   - 切片支持：按逗号分割，修剪空白
+
+### 类型特定函数
+
+**整数** (支持十六进制 0x、八进制 0、二进制 0b)：
+- Int(s string) (int, error)
+- Int8/Int16/Int32/Int64
+- Uint(s string) (uint, error)
+- Uint8/Uint16/Uint32/Uint64
+
+**浮点数**：
+- Float32(s string) (float32, error)
+- Float64(s string) (float64, error)
+- Decimal(s string) (decimal.Decimal, error) - 高精度
+
+**布尔值**：
+- Bool(s string) (bool, error)
+- 接受：true/false, 1/0, t/f, TRUE/FALSE
+
+**时间**：
+- Time(s string) (time.Time, error)
+  - 支持 20+ 种格式：RFC3339、YYYY-MM-DD、MM/DD/YYYY、Unix 时间戳
+- Duration(s string) (time.Duration, error)
+  - 格式："1h30m45s"、整数（纳秒）、浮点数（秒）
+
+## 使用示例
+
+```go
+// 基本类型
+v, _ := cast.FromString("42", "int")        // int 42
+v, _ := cast.FromString("true", "bool")     // bool true
+
+// 时间类型
+v, _ := cast.FromString("2023-12-25T10:30:45Z", "time.Time")
+v, _ := cast.FromString("1h30m", "time.Duration")
+
+// 数值进制
+v, _ := cast.Int("0xFF")    // 255
+v, _ := cast.Int("0755")    // 493
+v, _ := cast.Int("0b1010")  // 10
+
+// 切片（逗号分隔）
+t := reflect.TypeOf([]int(nil))
+v, _ := cast.FromType("1,2,3", t)  // []int{1,2,3}
+```
+
+## 实现细节
+
+### 时间解析 (time.go)
+- timeFormats 数组：21 个预定义格式按顺序尝试
+- 回退到 Unix 时间戳解析
+- 包级变量提升性能（每次调用无需分配内存）
+
+### 数值解析 (num.go)
+- 使用 strconv 处理标准类型
+- 自动检测进制（0x、0、0b）
+- Decimal 使用 github.com/shopspring/decimal 保证精度
+
+### 类型调度 (cast.go)
+- FromString：基于类型名称的 switch 语句
+- FromType：通过反射处理切片
+- 逗号分隔值并修剪空白
+
+## 错误处理
+
+- 不支持的类型：`fmt.Errorf("cast: type %v is not supported", targetType)`
+- 解析失败：返回 strconv 错误或自定义消息
+- 切片解析：在第一个错误处停止
+
+## 测试
+
+- 100% 测试覆盖率
+- 测试文件：bool_test.go、num_test.go、time_test.go、cast_test.go
+- 包名：cast_test（黑盒测试）
+- 包含边界测试、错误场景、基准测试
+
+运行测试：
+```bash
+go test -v
+go test -bench . -benchmem
+```
+
+## 依赖
+
+- 标准库：strconv、time、reflect、fmt、errors
+- 外部依赖：github.com/shopspring/decimal（仅 Decimal 函数使用）
+- 测试：github.com/stretchr/testify/assert
+
+## 设计原则
+
+1. **极简**：小的 API 接口，专注功能
+2. **类型安全**：返回具体类型，而非 interface{}
+3. **性能**：包级常量，高效解析
+4. **可扩展**：易于添加新的类型转换
+5. **充分测试**：全面的测试覆盖包含边界情况
+
+## 常用模式
+
+### CLI 标志解析
+```go
+val, _ := cast.FromString(flagValue, "int")
+```
+
+### 配置文件解析
+```go
+val, _ := cast.FromType(configValue, reflect.TypeOf(targetVar))
+```
+
+### 环境变量转换
+```go
+timeout, _ := cast.Duration(os.Getenv("TIMEOUT"))
+```
+
+## 版本兼容性
+
+- 推荐 Go 1.20+
+- 已在 Go 1.24 测试
+- 向后兼容的 API
+
+## 时间格式支持详情
+
+### 支持的时间格式
+1. RFC3339: `2006-01-02T15:04:05Z07:00`
+2. YYYY-MM-DD HH:MM:SS: `2023-12-25 10:30:45`
+3. YYYY-MM-DD: `2023-12-25`
+4. YYYY/MM/DD: `2023/12/25`
+5. MM/DD/YYYY: `12/25/2023`
+6. RFC1123: `Mon, 02 Jan 2006 15:04:05 MST`
+7. RFC822: `02 Jan 06 15:04 MST`
+8. Unix 时间戳: `1703505045`
+9. 纳秒精度支持
+
+### 持续时间格式
+1. 标准 Go 格式: `1h30m45s`, `500ms`, `2h`
+2. 整数（纳秒）: `1000000000`
+3. 浮点数（秒）: `1.5`, `0.001`
+
+## 数值进制支持
+
+- **十六进制**：0x 或 0X 前缀，如 `0xFF` = 255
+- **八进制**：0 前缀，如 `0755` = 493
+- **二进制**：0b 或 0B 前缀，如 `0b1010` = 10
+- **十进制**：无前缀，如 `123`
+
+## 性能优化
+
+1. **timeFormats 数组**：包级变量，避免每次调用分配内存
+2. **快速路径**：常用格式优先尝试
+3. **零依赖核心**：仅时间和数值类型使用标准库
+4. **高精度可选**：Decimal 作为独立依赖
+
+## 测试覆盖范围
+
+- ✅ 所有数值类型的边界值测试
+- ✅ 20+ 种时间格式测试
+- ✅ 多种持续时间格式测试
+- ✅ 布尔值多种表示形式测试
+- ✅ 切片解析边界情况测试
+- ✅ 错误场景和边界条件测试
+- ✅ 性能基准测试
+
+## 注意事项
+
+1. **整数解析**：Duration 函数中，纯整数被视为纳秒
+2. **浮点解析**：Duration 函数中，浮点数被视为秒
+3. **切片分割**：FromType 仅按逗号分割，不支持其他分隔符
+4. **空白处理**：FromType 自动修剪项目前后的空格、换行、回车符
+5. **时区处理**：不带时区信息的时间字符串解析为 UTC 时区

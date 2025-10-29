@@ -1,0 +1,148 @@
+# cast - String to Native Type Conversion Library
+
+> go-slim.dev/cast
+
+A minimal, dependency-free Go library for converting strings to native types.
+
+## Project Structure
+
+```
+cast/
+├── cast.go          - Core dispatchers (FromString, FromType)
+├── bool.go          - Boolean parsing
+├── num.go           - Numeric type parsing (int, uint, float, decimal)
+├── time.go          - Time and duration parsing
+├── *_test.go        - Comprehensive test suites
+├── go.mod           - Module definition
+├── README.md        - English documentation
+└── README.zh-CN.md  - Chinese documentation
+```
+
+## Core API
+
+### Main Entry Points
+
+1. **FromString(s string, targetType string) (any, error)**
+   - Converts string to specified type by name
+   - Supported types: int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, bool, string, time.Time, time.Duration
+
+2. **FromType(s string, targetType reflect.Type) (any, error)**
+   - Converts string using reflection
+   - Slice support: splits by comma, trims whitespace
+
+### Type-Specific Functions
+
+**Integers** (supports hex 0x, octal 0, binary 0b):
+- Int(s string) (int, error)
+- Int8/Int16/Int32/Int64
+- Uint(s string) (uint, error)
+- Uint8/Uint16/Uint32/Uint64
+
+**Floats**:
+- Float32(s string) (float32, error)
+- Float64(s string) (float64, error)
+- Decimal(s string) (decimal.Decimal, error) - high precision
+
+**Boolean**:
+- Bool(s string) (bool, error)
+- Accepts: true/false, 1/0, t/f, TRUE/FALSE
+
+**Time**:
+- Time(s string) (time.Time, error)
+  - Supports 20+ formats: RFC3339, YYYY-MM-DD, MM/DD/YYYY, Unix timestamps
+- Duration(s string) (time.Duration, error)
+  - Formats: "1h30m45s", integer (nanoseconds), float (seconds)
+
+## Usage Examples
+
+```go
+// Basic types
+v, _ := cast.FromString("42", "int")        // int 42
+v, _ := cast.FromString("true", "bool")     // bool true
+
+// Time types
+v, _ := cast.FromString("2023-12-25T10:30:45Z", "time.Time")
+v, _ := cast.FromString("1h30m", "time.Duration")
+
+// Number bases
+v, _ := cast.Int("0xFF")    // 255
+v, _ := cast.Int("0755")    // 493
+v, _ := cast.Int("0b1010")  // 10
+
+// Slices (comma-separated)
+t := reflect.TypeOf([]int(nil))
+v, _ := cast.FromType("1,2,3", t)  // []int{1,2,3}
+```
+
+## Implementation Details
+
+### Time Parsing (time.go)
+- timeFormats array: 21 predefined formats tried in order
+- Falls back to Unix timestamp parsing
+- Package-level variable for performance (no allocation per call)
+
+### Number Parsing (num.go)
+- Uses strconv for standard types
+- Base auto-detection (0x, 0, 0b)
+- Decimal uses github.com/shopspring/decimal for precision
+
+### Type Dispatch (cast.go)
+- FromString: switch statement on type names
+- FromType: handles slices via reflection
+- Comma-separated values with whitespace trimming
+
+## Error Handling
+
+- Unsupported type: `fmt.Errorf("cast: type %v is not supported", targetType)`
+- Parse failures: returns strconv errors or custom messages
+- Slice parsing: stops at first error
+
+## Testing
+
+- 100% test coverage
+- Test files: bool_test.go, num_test.go, time_test.go, cast_test.go
+- Package name: cast_test (black-box testing)
+- Includes boundary tests, error cases, benchmarks
+
+Run tests:
+```bash
+go test -v
+go test -bench . -benchmem
+```
+
+## Dependencies
+
+- Standard library: strconv, time, reflect, fmt, errors
+- External: github.com/shopspring/decimal (for Decimal function only)
+- Test: github.com/stretchr/testify/assert
+
+## Design Principles
+
+1. **Minimal**: Small API surface, focused functionality
+2. **Type-safe**: Returns specific types, not interface{}
+3. **Performance**: Package-level constants, efficient parsing
+4. **Extensible**: Easy to add new type conversions
+5. **Well-tested**: Comprehensive test coverage with edge cases
+
+## Common Patterns
+
+### CLI Flag Parsing
+```go
+val, _ := cast.FromString(flagValue, "int")
+```
+
+### Config File Parsing
+```go
+val, _ := cast.FromType(configValue, reflect.TypeOf(targetVar))
+```
+
+### Environment Variable Conversion
+```go
+timeout, _ := cast.Duration(os.Getenv("TIMEOUT"))
+```
+
+## Version Compatibility
+
+- Go 1.20+ recommended
+- Tested with Go 1.24
+- Backward compatible API
