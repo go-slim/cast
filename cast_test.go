@@ -3,6 +3,7 @@ package cast_test
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go-slim.dev/cast"
@@ -128,13 +129,42 @@ func TestFromString(t *testing.T) {
 	_, err = cast.FromString("invalid", "bool")
 	assert.Errorf(t, err, message, "invalid", "bool")
 
+	// time.Time
+	val, err = cast.FromString("2023-12-25T10:30:45Z", "time.Time")
+	assert.NoError(t, err)
+	expectedTime, _ := time.Parse(time.RFC3339, "2023-12-25T10:30:45Z")
+	assert.Equal(t, expectedTime, val)
+
+	val, err = cast.FromString("1703505045", "time.Time")
+	assert.NoError(t, err)
+	assert.Equal(t, time.Unix(1703505045, 0), val)
+
+	_, err = cast.FromString("invalid-time", "time.Time")
+	assert.Error(t, err)
+
+	// time.Duration
+	val, err = cast.FromString("1h30m45s", "time.Duration")
+	assert.NoError(t, err)
+	assert.Equal(t, 1*time.Hour+30*time.Minute+45*time.Second, val)
+
+	val, err = cast.FromString("5000000000", "time.Duration")
+	assert.NoError(t, err)
+	assert.Equal(t, 5*time.Second, val)
+
+	val, err = cast.FromString("1.5", "time.Duration")
+	assert.NoError(t, err)
+	assert.Equal(t, 1500*time.Millisecond, val)
+
+	_, err = cast.FromString("invalid-duration", "time.Duration")
+	assert.Error(t, err)
+
 	// else
 
 	_, err = cast.FromString("0", "invalid")
-	assert.Error(t, err, "cast: type %v is not supported", "invalid")
+	assert.Error(t, err)
 
 	_, err = cast.FromString("0,1", "[]invalid")
-	assert.Error(t, err, "cast: type %v is not supported", "[]invalid")
+	assert.Error(t, err)
 }
 
 func TestFromType(t *testing.T) {
@@ -200,4 +230,46 @@ func TestFromType(t *testing.T) {
 
 	val, err = cast.FromType("a,b,c", reflect.TypeOf([]int{}))
 	assert.Error(t, err)
+
+	// Test time arrays
+	val, err = cast.FromType("2023-12-25T10:30:45Z,2023-12-26T11:45:00Z", reflect.TypeOf([]time.Time{}))
+	assert.NoError(t, err)
+	expectedTimes := []time.Time{}
+	t1, _ := time.Parse(time.RFC3339, "2023-12-25T10:30:45Z")
+	t2, _ := time.Parse(time.RFC3339, "2023-12-26T11:45:00Z")
+	expectedTimes = append(expectedTimes, t1, t2)
+	assert.Equal(t, expectedTimes, val)
+
+	// Test duration arrays
+	val, err = cast.FromType("1h30m,2h45m", reflect.TypeOf([]time.Duration{}))
+	assert.NoError(t, err)
+	expectedDurations := []time.Duration{1*time.Hour + 30*time.Minute, 2*time.Hour + 45*time.Minute}
+	assert.Equal(t, expectedDurations, val)
+}
+
+func TestEdgeCases(t *testing.T) {
+	// Test empty arrays
+	val, err := cast.FromType("", reflect.TypeOf([]string{}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{""}, val)
+
+	// Test arrays with extra spaces
+	val, err = cast.FromType("  a ,  b  , c  ", reflect.TypeOf([]string{}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b", "c"}, val)
+
+	// Test arrays with newline characters (should be treated as single element since only comma splits)
+	val, err = cast.FromType("a\nb\nc", reflect.TypeOf([]string{}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a\nb\nc"}, val)
+
+	// Test arrays with newline and comma combination
+	val, err = cast.FromType("a,b\nc", reflect.TypeOf([]string{}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a", "b\nc"}, val)
+
+	// Test arrays with various whitespace
+	val, err = cast.FromType("a\t,\nb\r,\tc", reflect.TypeOf([]string{}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"a\t", "b", "\tc"}, val)
 }
