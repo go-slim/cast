@@ -238,19 +238,19 @@ func TestNumberBases(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkInt(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cast.Int("123")
 	}
 }
 
 func BenchmarkFloat(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cast.Float64("3.14")
 	}
 }
 
 func BenchmarkDecimal(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		cast.Decimal("123.45")
 	}
 }
